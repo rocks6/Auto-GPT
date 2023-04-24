@@ -1,3 +1,4 @@
+import hashlib
 import os
 import shutil
 import unittest
@@ -44,18 +45,20 @@ class TestFileOperations(unittest.TestCase):
             shutil.rmtree(self.test_directory)
 
     def test_check_duplicate_operation(self):
-        log_operation("write", self.test_file)
-        self.assertTrue(check_duplicate_operation("write", self.test_file))
+        text_hash = hashlib.sha512("test".encode('UTF-8'))
+        log_operation("write", self.test_file, text_hash)
+        self.assertTrue(check_duplicate_operation("write", self.test_file, text_hash))
 
     # Test logging a file operation
     def test_log_operation(self):
         if os.path.exists(self.file_logger_logs):
             os.remove(self.file_logger_logs)
 
-        log_operation("log_test", self.test_file)
+        text_hash = hashlib.sha512("test".encode('UTF-8'))
+        log_operation("log_test", self.test_file, text_hash)
         with open(LOG_FILE_PATH, "r") as f:
             content = f.read()
-        self.assertIn("log_test: test_file.txt", content)
+        self.assertIn(f"log_test: test_file.txt - {text_hash}", content)
 
     # Test splitting a file into chunks
     def test_split_file(self):

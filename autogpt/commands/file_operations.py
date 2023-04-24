@@ -1,6 +1,7 @@
 """File operations for AutoGPT"""
 from __future__ import annotations
 
+import hashlib
 import os
 import os.path
 from typing import Generator
@@ -20,29 +21,34 @@ LOG_FILE = "file_logger.txt"
 LOG_FILE_PATH = WORKSPACE_PATH / LOG_FILE
 
 
-def check_duplicate_operation(operation: str, filename: str) -> bool:
+def check_duplicate_operation(operation: str, filename: str, hash: str) -> bool:
     """Check if the operation has already been performed on the given file
 
     Args:
         operation (str): The operation to check for
         filename (str): The name of the file to check for
+        hash (str): hash of content in the operation, to ensure we don't count two writes on the same file as a duplicate
 
     Returns:
         bool: True if the operation has already been performed on the file
     """
     log_content = read_file(LOG_FILE)
-    log_entry = f"{operation}: {filename}\n"
+    log_entry = f"{operation}: {filename} - {hash}\n"
     return log_entry in log_content
 
 
-def log_operation(operation: str, filename: str) -> None:
+def log_operation(operation: str, filename: str, hash: str) -> None:
     """Log the file operation to the file_logger.txt
 
     Args:
         operation (str): The operation to log
         filename (str): The name of the file the operation was performed on
+        hash (str): hash of content in the operation, to ensure we don't count two writes on the same file as a duplicate
     """
-    log_entry = f"{operation}: {filename}\n"
+    log_entry = f"{operation}: {filename}"
+    if hash is not None:
+        log_entry += f" - {hash}"
+    log_entry += "\n"
 
     # Create the log file if it doesn't exist
     if not os.path.exists(LOG_FILE_PATH):
@@ -147,7 +153,8 @@ def write_to_file(filename: str, text: str) -> str:
     Returns:
         str: A message indicating success or failure
     """
-    if check_duplicate_operation("write", filename):
+    text_hashed = hashlib.sha512(text.encode('UTF-8'))
+    if check_duplicate_operation("write", filename, text_hashed):
         return "Error: File has already been updated."
     try:
         filepath = path_in_workspace(filename)
@@ -156,7 +163,7 @@ def write_to_file(filename: str, text: str) -> str:
             os.makedirs(directory)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(text)
-        log_operation("write", filename)
+        log_operation("write", filename, text_hashed)
         return "File written to successfully."
     except Exception as e:
         return f"Error: {str(e)}"
@@ -177,12 +184,13 @@ def append_to_file(filename: str, text: str, should_log: bool = True) -> str:
         str: A message indicating success or failure
     """
     try:
+        text_hashed = hashlib.sha512(text.encode('UTF-8'))
         filepath = path_in_workspace(filename)
         with open(filepath, "a") as f:
             f.write(text)
 
         if should_log:
-            log_operation("append", filename)
+            log_operation("append", filename, text_hashed)
 
         return "Text appended successfully."
     except Exception as e:
@@ -199,12 +207,10 @@ def delete_file(filename: str) -> str:
     Returns:
         str: A message indicating success or failure
     """
-    if check_duplicate_operation("delete", filename):
-        return "Error: File has already been deleted."
     try:
         filepath = path_in_workspace(filename)
         os.remove(filepath)
-        log_operation("delete", filename)
+        log_operation("delete", filename, None)
         return "File deleted successfully."
     except Exception as e:
         return f"Error: {str(e)}"
